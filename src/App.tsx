@@ -4,6 +4,7 @@ import { Button, Flex, Segment, Provider, teamsTheme, Text } from "@fluentui/rea
 import { BrowserRouter as Router, Route } from "react-router-dom";
 import jwtdecode from "jwt-decode";
 import crypto from "crypto";
+import * as graph from "@microsoft/microsoft-graph-client";
 
 
 function AuthStart() {
@@ -18,7 +19,7 @@ function AuthStart() {
         client_id: `${client_id}`,
         response_type: "token", //token_id in other samples is only needed if using open ID
         redirect_uri: window.location.origin + "/auth-end",
-        scope: "https://graph.microsoft.com/.default",
+        scope: "https://graph.microsoft.com/User.Read",
         nonce: crypto.randomBytes(16).toString('base64')
       }
 
@@ -83,8 +84,6 @@ function Home() {
         let response = await fetch(serverURL);
         if (response) {
           let data = await response.json();
-          console.log(data);
-
           if (!response.ok && data.error === '要求授权') {
             microsoftTeams.authentication.authenticate({
               url: window.location.origin + "/auth-start",
@@ -103,9 +102,40 @@ function Home() {
         }
       }}></Button>
       <Segment content={graphToken} color="blue"></Segment>
-      <Button content="获取用户名" onClick={() => {
+      <Button content="获取用户名" onClick={async () => {
         if (authToken && !graphToken) {
           setUserName("本地读取到的用户名:" + (jwtdecode(authToken) as any).name);
+        }
+        else if (graphToken) {
+          // let graphmeEndpoint = `https://graph.microsoft.com/v1.0/me`;
+          // let graphRequestParams = {
+          //   method: 'GET',
+          //   headers: {
+          //     "authorization": "bearer " + graphToken
+          //   }
+          // }
+
+          // let response = await fetch(graphmeEndpoint, graphRequestParams);
+          // if (response) {
+          //   if (!response.ok) {
+          //     console.error("出现错误: ", response);
+          //   }
+          //   else {
+          //     const user = await response.json();
+          //     setUserName(user.DisplayName);
+          //   }
+          // }
+
+          const client = graph.Client.init({
+            authProvider: (done: any) => {
+              done(null, graphToken);
+            }
+          })
+
+          const user = await client.api("/me").get();
+          console.log(user);
+          setUserName(user.displayName);
+
         }
       }}></Button>
       <Segment content={userName} color="green"></Segment>

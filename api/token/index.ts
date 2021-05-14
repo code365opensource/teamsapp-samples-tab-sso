@@ -11,7 +11,7 @@ const httpTrigger: AzureFunction = async function (context: Context, req: HttpRe
         client_id: "692fb9c1-02ab-4bc0-bfaf-c270cedf85b8",
         client_secret: "W86QwNW8g~CP.v9dA-bKj_OuM~iJJ75yd3",
         assertion: req.query.ssoToken as string,
-        scope: 'https://graph.microsoft.com/.default',
+        scope: 'https://graph.microsoft.com/User.Read',
         requested_token_use: "on_behalf_of",
     };
 
