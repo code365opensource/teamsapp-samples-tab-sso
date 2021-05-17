@@ -6,7 +6,10 @@ import jwtdecode from "jwt-decode";
 import crypto from "crypto";
 import * as graph from "@microsoft/microsoft-graph-client";
 
+const scope = "https://graph.microsoft.com/User.Read https://graph.microsoft.com/Files.Read";
 
+
+// 这个组件用来在弹出的一个对话框中，去请求身份验证，这里会跳到Azure的登陆页面，并且在成功后跳回到对应的页面（用来接收access token），这里用到的是典型的 code-grant 的授权流。
 function AuthStart() {
   useEffect(() => {
     microsoftTeams.initialize();
@@ -19,7 +22,7 @@ function AuthStart() {
         client_id: `${client_id}`,
         response_type: "token", //token_id in other samples is only needed if using open ID
         redirect_uri: window.location.origin + "/auth-end",
-        scope: "https://graph.microsoft.com/User.Read",
+        scope: scope,
         nonce: crypto.randomBytes(16).toString('base64')
       }
 
@@ -32,7 +35,7 @@ function AuthStart() {
   }, [])
   return <Text content="身份认证开始..."></Text>
 }
-
+// 这个组件用来接收身份验证的结果
 function AuthEnd() {
   const getHashParameters = () => {
     let hashParams: any = {};
@@ -45,16 +48,12 @@ function AuthEnd() {
 
   useEffect(() => {
     microsoftTeams.initialize();
-
-    //The Azure implicit grant flow injects the result into the window.location.hash object. Parse it to find the results.
     let hashParams = getHashParameters();
-
-    //If consent has been successfully granted, the Graph access token should be present as a field in the dictionary.
     if (hashParams["access_token"]) {
-      //Notifify the showConsentDialogue function in Tab.js that authorization succeeded. The success callback should fire. 
+      // 这一句很关键，只有notifysuccess后，窗口会被关闭，然后继续后续的操作
       microsoftTeams.authentication.notifySuccess(hashParams["access_token"]);
     } else {
-      microsoftTeams.authentication.notifyFailure("Consent failed");
+      microsoftTeams.authentication.notifyFailure("授权失败");
     }
   }, [])
 
@@ -62,6 +61,7 @@ function AuthEnd() {
 
 }
 
+// 这个组件是主界面
 function Home() {
 
   const [authToken, setAuthToken] = useState<string>();
@@ -72,6 +72,7 @@ function Home() {
   return (
     <Flex column fill gap="gap.medium">
       <Button content="获取Auth Token" onClick={() => {
+        // 这个按钮用来获取本地的客户端凭据
         microsoftTeams.authentication.getAuthToken({
           successCallback: (token: string) => {
             setAuthToken(token);
@@ -79,8 +80,11 @@ function Home() {
         })
       }}></Button>
       <Segment content={authToken} color="red"></Segment>
+
+
       <Button content="获取Graph Token" onClick={async () => {
-        let serverURL = `api/token?ssoToken=${authToken}`;
+        // 这个按钮用来获取交换得到的graph 令牌
+        let serverURL = `api/token?ssoToken=${authToken}&scope=${scope}`;
         let response = await fetch(serverURL);
         if (response) {
           let data = await response.json();
@@ -90,7 +94,7 @@ function Home() {
               width: 600,
               height: 535,
               successCallback: (result) => { setGraphToken(result); },
-              failureCallback: (reason) => { }
+              failureCallback: (reason) => { console.log(`交换token失败，原因是:${reason}`) }
             });
 
           } else if (!response.ok) {
@@ -102,30 +106,14 @@ function Home() {
         }
       }}></Button>
       <Segment content={graphToken} color="blue"></Segment>
+
+
       <Button content="获取用户名" onClick={async () => {
         if (authToken && !graphToken) {
           setUserName("本地读取到的用户名:" + (jwtdecode(authToken) as any).name);
         }
         else if (graphToken) {
-          // let graphmeEndpoint = `https://graph.microsoft.com/v1.0/me`;
-          // let graphRequestParams = {
-          //   method: 'GET',
-          //   headers: {
-          //     "authorization": "bearer " + graphToken
-          //   }
-          // }
-
-          // let response = await fetch(graphmeEndpoint, graphRequestParams);
-          // if (response) {
-          //   if (!response.ok) {
-          //     console.error("出现错误: ", response);
-          //   }
-          //   else {
-          //     const user = await response.json();
-          //     setUserName(user.DisplayName);
-          //   }
-          // }
-
+          // 这里拿到的graphToken，可以用来继续访问其他资源
           const client = graph.Client.init({
             authProvider: (done: any) => {
               done(null, graphToken);
@@ -133,13 +121,28 @@ function Home() {
           })
 
           const user = await client.api("/me").get();
-          console.log(user);
           setUserName(user.displayName);
 
         }
       }}></Button>
       <Segment content={userName} color="green"></Segment>
-      <Button content="获取文件内容"></Button>
+      <Button content="获取文件内容" onClick={async () => {
+        //实现文件读取
+        if (graphToken) {
+          const client = graph.Client.init({
+            authProvider: (done: any) => {
+              done(null, graphToken);
+            }
+          });
+
+          const file = await client.api("/me/drive/root:/demo.txt").get();
+          const url = file["@microsoft.graph.downloadUrl"];
+          fetch(url).then(value => value.text()).then(text => setFileContent(text));
+
+
+        }
+
+      }}></Button>
       <Segment content={fileContent} color="black"></Segment>
     </Flex>
 
@@ -160,5 +163,4 @@ function App() {
   </Provider>
 
 }
-
 export default App;

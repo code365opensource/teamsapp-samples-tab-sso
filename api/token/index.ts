@@ -3,6 +3,7 @@ import jwt_decode, { JwtPayload } from "jwt-decode";
 
 const httpTrigger: AzureFunction = async function (context: Context, req: HttpRequest): Promise<void> {
     const ssoToken = req.query.ssoToken as string;
+    const scope = req.query.scope as string;
     let tenantId = jwt_decode<JwtPayload>(ssoToken)['tid']; //获取租户的编号
     let accessTokenEndpoint = `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`;
 
@@ -10,8 +11,8 @@ const httpTrigger: AzureFunction = async function (context: Context, req: HttpRe
         grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
         client_id: "692fb9c1-02ab-4bc0-bfaf-c270cedf85b8",
         client_secret: "W86QwNW8g~CP.v9dA-bKj_OuM~iJJ75yd3",
-        assertion: req.query.ssoToken as string,
-        scope: 'https://graph.microsoft.com/User.Read',
+        assertion: ssoToken,
+        scope: scope,
         requested_token_use: "on_behalf_of",
     };
 
